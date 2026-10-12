@@ -69,8 +69,11 @@ def initGame(lines: Array[String] = defaultMazeLines, startEnergy: Int = 12)
 
 /** True when the cell at (row, col) is inside the grid and is not a wall. */
 def isWalkable(maze: Array[Array[Char]], row: Int, col: Int): Boolean =
-  // TODO: Check if (row, col) is within maze bounds and not a wall ('#')
-  false
+  row >= 0 &&
+    row < maze.length &&
+    col >= 0 &&
+    col < maze(row).length &&
+    maze(row)(col) != '#'
 
 /** Translate a direction character into a (dRow, dCol) delta.
   *
@@ -80,8 +83,12 @@ def isWalkable(maze: Array[Array[Char]], row: Int, col: Int): Boolean =
   *   Some((dr, dc)) for a recognised direction, None otherwise
   */
 def directionDelta(direction: Char): Option[(Int, Int)] =
-  // TODO: Map 'U', 'D', 'L', 'R' to their corresponding (dRow, dCol) coordinate offsets
-  None
+  direction match
+    case 'U' => Some((-1, 0))
+    case 'D' => Some((1, 0))
+    case 'L' => Some((0, -1))
+    case 'R' => Some((0, 1))
+    case _   => None
 
 /** Try to move the robot one step in the given direction.
   *
@@ -95,23 +102,32 @@ def moveRobot(
     robot: Array[Int],
     direction: Char
 ): Boolean =
-  // TODO: If the target cell in the given direction is walkable, update robot(0) and robot(1)
-  // in place and return true; otherwise return false
-  false
+  directionDelta(direction) match
+    case Some((dRow, dCol)) =>
+      val newRow = robot(0) + dRow
+      val newCol = robot(1) + dCol
+      if isWalkable(maze, newRow, newCol) then
+        robot(0) = newRow
+        robot(1) = newCol
+        true
+      else false
+    case None => false
 
 /** If the robot is standing on an energy cell ('C'), collect it.
   *
   * The cell is replaced with '.' and 1 is returned; otherwise 0.
   */
 def collectCell(maze: Array[Array[Char]], robot: Array[Int]): Int =
-  // TODO: If the robot is standing on an energy cell ('C'), replace it with '.' and return 1;
-  // otherwise return 0
-  0
+  val row = robot(0)
+  val col = robot(1)
+  if maze(row)(col) == 'C' then
+    maze(row)(col) = '.'
+    1
+  else 0
 
 /** True when the robot is standing on the exit ('E'). */
 def isAtExit(maze: Array[Array[Char]], robot: Array[Int]): Boolean =
-  // TODO: Return true if the robot is standing on the exit marker ('E')
-  false
+  maze(robot(0))(robot(1)) == 'E'
 
 // ─── Rendering ───────────────────────────────────────────────────────────────
 
@@ -125,9 +141,17 @@ def render(
     energy: Int,
     cellsCollected: Int = 0
 ): String =
-  // TODO: Render the maze grid with '@' at the robot's current position,
-  // followed by a status line: s"Energy: $energy  Cells: $cellsCollected"
-  ""
+  var output = ""
+  var row = 0
+  while row < maze.length do
+    var col = 0
+    while col < maze(row).length do
+      if row == robot(0) && col == robot(1) then output += '@'
+      else output += maze(row)(col)
+      col += 1
+    if row < maze.length - 1 then output += '\n'
+    row += 1
+  s"$output\nEnergy: $energy  Cells: $cellsCollected"
 
 // ─── Game loop ───────────────────────────────────────────────────────────────
 
@@ -145,10 +169,7 @@ def playMoves(
     moves: String,
     startEnergy: Int = 12
 ): Int =
-  // TODO: Execute moves string sequentially, deducting 1 energy per valid move,
-  // adding 3 energy per collected cell ('C'), stopping when stranded (0 energy) or at exit ('E').
-  // Return remaining energy.
-  0
+  playGame(maze, robot, moves, startEnergy)._1
 
 /** A cleaner playMoves that properly tracks cell collection and energy bonus.
   *
@@ -163,17 +184,27 @@ def playGame(
     moves: String,
     startEnergy: Int = 12
 ): (Int, Int, Boolean) =
-  // TODO: Execute moves string, deducting 1 energy per valid move, adding 3 per collected cell.
-  // Track cells collected and whether the robot reached the exit.
-  // Return (remainingEnergy, cellsCollected, reachedExit).
-  (startEnergy, 0, false)
+  var energy = startEnergy
+  var cellsCollected = 0
+  var reachedExit = isAtExit(maze, robot)
+  var moveIndex = 0
+
+  while moveIndex < moves.length && energy > 0 && !reachedExit do
+    if moveRobot(maze, robot, moves(moveIndex)) then
+      energy -= 1
+      val collected = collectCell(maze, robot)
+      cellsCollected += collected
+      energy += collected * 3
+      reachedExit = isAtExit(maze, robot)
+    moveIndex += 1
+
+  (energy, cellsCollected, reachedExit)
 
 // ─── Part 2: Parameter passing and aliasing ──────────────────────────────────
 
 /** Mutates the shared array — caller sees the change. */
 def moveNorth(position: Array[Int]): Unit =
-  // TODO: Mutate position(0) to move north (decrement row by 1)
-  ()
+  position(0) -= 1
 
 /** Demonstrates that rebinding a local val cannot affect the caller's reference.
   *
@@ -181,9 +212,9 @@ def moveNorth(position: Array[Int]): Unit =
   * This version shows the same principle.
   */
 def localReset(position: Array[Int]): Unit =
-  // TODO: Explore parameter passing semantics: create a local val `replacement = Array(1, 1)`
-  // and demonstrate why the caller's position array is unaffected.
-  ()
+  var localPosition = position
+  val replacement = Array(1, 1)
+  localPosition = replacement
 
 // ─── Part 2 (cont.): Call by name ────────────────────────────────────────────
 
@@ -196,9 +227,9 @@ def localReset(position: Array[Int]): Unit =
   *   the number of times action returned true
   */
 def repeatUntilStopped(action: => Boolean): Int =
-  // TODO: Repeatedly evaluate call-by-name action until it evaluates to false,
-  // returning the number of times action returned true.
-  0
+  var count = 0
+  while action do count += 1
+  count
 
 // ─── Part 3: Recursive flood-fill scanner ────────────────────────────────────
 
@@ -224,16 +255,16 @@ def revealReachable(
     row: Int,
     col: Int
 ): Int =
-  // TODO: Reveal all reachable (non-wall) cells from (row, col) using recursive flood fill.
-  // Base cases:
-  //   - out of bounds -> return 0
-  //   - wall ('#') -> return 0
-  //   - already revealed -> return 0
-  // Recursive step:
-  //   - mark (row, col) as revealed
-  //   - recurse into all four neighbours (up, down, left, right)
-  //   - return 1 + sum of newly revealed neighbours
-  0
+  if row < 0 || row >= maze.length then 0
+  else if col < 0 || col >= maze(row).length then 0
+  else if maze(row)(col) == '#' || revealed(row)(col) then 0
+  else
+    revealed(row)(col) = true
+    1 +
+      revealReachable(maze, revealed, row - 1, col) +
+      revealReachable(maze, revealed, row + 1, col) +
+      revealReachable(maze, revealed, row, col - 1) +
+      revealReachable(maze, revealed, row, col + 1)
 
 /** Iterative flood-fill using an explicit mutable stack (stretch goal / extra credit).
   *
@@ -249,9 +280,21 @@ def revealReachableIterative(
     startRow: Int,
     startCol: Int
 ): Int =
-  // TODO (Extra Credit): Implement iterative flood-fill using an explicit mutable stack
-  // (scala.collection.mutable.Stack).
-  0
+  val pending = scala.collection.mutable.Stack[(Int, Int)]()
+  pending.push((startRow, startCol))
+  var count = 0
+
+  while pending.nonEmpty do
+    val (row, col) = pending.pop()
+    if isWalkable(maze, row, col) && !revealed(row)(col) then
+      revealed(row)(col) = true
+      count += 1
+      pending.push((row - 1, col))
+      pending.push((row + 1, col))
+      pending.push((row, col - 1))
+      pending.push((row, col + 1))
+
+  count
 
 /** Help message describing all interactive REPL commands. */
 def helpMessage(): String =

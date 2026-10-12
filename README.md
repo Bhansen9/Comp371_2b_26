@@ -253,10 +253,10 @@ Trace the three moves `R`, `D`, `D` on the `smallLines` 5×5 maze starting at `(
 
 | Step | Move Command | Attempted Pos | Walkable? | Updated Robot Pos | Remaining Energy | Cells Collected | Note |
 |:----:|:------------:|:-------------:|:---------:|:-----------------:|:----------------:|:---------------:|:-----|
-| 0 | *Init* | — | — | `(1, 1)` | 10 | 0 | Initial state |
-| 1 | `R` | `(1, 2)` | [TODO: Yes/No] | [TODO] | [TODO] | [TODO] | [TODO] |
-| 2 | `D` | `(2, 2)` | [TODO: Yes/No] | [TODO] | [TODO] | [TODO] | [TODO] |
-| 3 | `D` | `(2, 2)` | [TODO: Yes/No] | [TODO] | [TODO] | [TODO] | [TODO] |
+| 0 | *Init* | — | — | (1, 1) | 10 | 0 | Initial state |
+| 1 | R | (1, 2) | Yes | (1, 2) | 9 | 0 | The robot moves onto open floor, so the move costs 1 energy. |
+| 2 | D | (2, 2) | No | (1, 2) | 9 | 0 | (2, 2) is a wall, so the robot and energy do not change. |
+| 3 | D | (2, 2) | No | (1, 2) | 9 | 0 | The same blocked move is attempted again with no state change. |
 
 ---
 
@@ -266,19 +266,49 @@ Illustrate with an ASCII diagram the stack and heap layout during execution of:
 1. `moveNorth(pos)`
 2. `localReset(pos)`
 
+
 ```
-[TODO: Provide your ASCII memory diagram here showing Stack Frames, Callee Parameters, and Heap Arrays]
+moveNorth(pos)
+
+Stack                Heap
+____                 ___
+main frame
+   pos.    ->        H1: Array(3, 4)
+
+moveNorth frame
+   position    ->       H1: Array(3, 4) 
+
+   position(0) -= 1 mutates H1
+                                     H1: Array(2,4)
+   
+move North then return then frame is removed but the main.pos is still pointed at H1
+
+localReset(pos)
+
+Stack                             Heap
+___                               ____
+main frame
+   pos            ->          H1: Array(3,4)
+
+localReset frame
+   position           ->            H1: Array(3,4)
+   localPosition                    H1: Array(3,4)
+   replacment           ->          H2: Array(1,1)
+   localPosition                 H2: Array(1,1)
+
+localReset then returns and its frame and replacment reference are gone. The H2 can then
+be moved to the GC when the main.pos is pointing to H1.
 ```
 
 **Written Explanation:**
 1. Why does `moveNorth` mutate the caller's array, whereas passing an `Int` variable (e.g. `energy`) cannot be mutated by the callee?
-   > [TODO: Your answer here]
+  moveNorth can mutate the caller's array becuase then the array is passed through the method the caller and method refer to the same array meaning it can mutate the shared array. While in the other case it recieves a copy of the number of the int so the int directly cannot be mutated by the callee.
 
 2. Why does Scala reject `position = Array(1, 1)` in parameter lists, and what happens when you rebind a local `val replacement = Array(1, 1)`?
-   > [TODO: Your answer here]
+ the parametter is like an array so this mean it can't refer to another array. This makes an replacement or copy of the array and doesnt change the arrays values in anyway.
 
 3. How does call-by-name (`action: => Boolean` in `repeatUntilStopped`) fundamentally differ from passing a reference or passing a primitive value?
-   > [TODO: Your answer here]
+call by name runs the expression everytime the method uses action. while a normal parametter only runs once before the method is ran and only receives its results.
 
 ---
 
@@ -294,21 +324,37 @@ Given the 4×4 `tinyLines` maze:
 Trace `revealReachable(maze, revealed, 1, 1)`:
 
 ```
-[TODO: Show the sequence of activation records pushed and popped from the call stack, including arguments (row, col) and return values]
+push reveal(1, 1): mark (1, 1)
+  push reveal(0, 1): wall -> return 0; pop
+  push reveal(2, 1): mark (2, 1)
+    push reveal(1, 1): already revealed -> return 0; pop
+    push reveal(3, 1): wall -> return 0; pop
+    push reveal(2, 0): wall -> return 0; pop
+    push reveal(2, 2): wall -> return 0; pop
+  reveal(2, 1) returns 1 + 0 + 0 + 0 + 0 = 1; pop
+  push reveal(1, 0): wall -> return 0; pop
+  push reveal(1, 2): mark (1, 2)
+    push reveal(0, 2): wall -> return 0; pop
+    push reveal(2, 2): wall -> return 0; pop
+    push reveal(1, 1): already revealed -> return 0; pop
+    push reveal(1, 3): wall -> return 0; pop
+  reveal(1, 2) returns 1 + 0 + 0 + 0 + 0 = 1; pop
+reveal(1, 1) returns 1 + 0 + 1 + 0 + 1 = 3; pop
 ```
 
 **Questions:**
 1. What values are stored in each activation record (stack frame) on the JVM?
-   > [TODO: Your answer here]
+   each method has its own stack frame that has the row and col values. It also stores the prevois call. The main arrays stay on the heap and the frame stores the references.
 
 2. Which invocations hit the base cases (out of bounds, wall `#`, or already revealed)?
-   > [TODO: Your answer here]
+  The cases that hit the wall are (0,1), ( 3,1), (2,0), (2,2), (1,0), (0,2), (1,3). The calls from (2,1) (1,2) back to (1,1) stop from (1,1) already being revealed.
 
 3. Why is marking `revealed(row)(col) = true` *prior* to recursive neighbor exploration essential to avoid infinite recursion?
-   > [TODO: Your answer here]
+Because when marking the cell first it tells the calls that it has already been visited. If it didnt then the cells would call each other infinitly because they havent been marked yet.
+
 
 4. What is the maximum theoretical stack depth in the worst-case maze of size $M \times N$?
-   > [TODO: Your answer here]
+  the worst case would be the recursion going through all M\times N cells then returning. This would make the max O(M*N).
 
 ---
 
@@ -316,11 +362,12 @@ Trace `revealReachable(maze, revealed, 1, 1)`:
 
 Compare `revealReachable` (recursive) with `revealReachableIterative` (explicit heap stack):
 * **Memory location of state:**
-  > [TODO: Your answer here]
+  The recusive verison stores its work on the stack while the iterative version stores the coordinates in a stack on the heap. Both keep the work of the arrays on the heap.
 * **Risk of `StackOverflowError` vs. `OutOfMemoryError`:**
-  > [TODO: Your answer here]
+  the recursive verison can cause a stack over flow error if to many call are active at once. The iterative version however could cause an out of memory error if the stack grows to large for the heap.
 * **Performance tradeoffs (function invocation overhead vs object allocation):**
-  > [TODO: Your answer here]
+   Recursion is easier to wirte but the recusisive adds a stack frome. the iterative verison uses a loop instead, however it must make coordinate tuples and push and pop them from the stack.
+  
 
 ---
 
@@ -328,14 +375,16 @@ Compare `revealReachable` (recursive) with `revealReachableIterative` (explicit 
 
 In this assignment, all state is represented using raw arrays (`Array[Array[Char]]`, `Array[Int]`) and loose variables passed into top-level procedures.
 1. What problems or vulnerabilities arise when multiple procedures directly read and mutate naked arrays?
-   > [TODO: Your answer here]
+  naked arrays's error for mixing up values liek the col and row can be more common. Procedures could also move the robot outside the maze. It could also change the position without updating the energy.
 
 2. How would an Object-Oriented or ADT-based design (e.g., `Maze`, `Robot`, `Cell`, `Position`) improve encapsulation, type safety, and maintainability in Project 2?
-   > [TODO: Your answer here]
+   types like the maze, robot and the postion would oranize the information and give the values clear names. The ADT would limit cells to valid types such as walls, floors, energy cells. Methods could control how the robot moves and collects energy. 
 
 ---
 
 ### AI Usage Disclosure
 * [ ] No AI tools were used on this assignment.
-* [ ] AI tools were used (describe tool, prompts, and provide transcript link below or transcript document(s) in doc/ subdirectory):
-  > [TODO: AI transcript link or statement]
+* [X] AI tools were used (describe tool, prompts, and provide transcript link below or transcript document(s) in doc/ subdirectory):
+
+  AI was used to guide through the assignment specification, starter implementation, tests, and project guidelines. It explained the required work and then helped implement the movement and game procedures, parameter-passing exercise, recursive and iterative flood fills. 
+

@@ -579,25 +579,66 @@ class SampleMazesTest:
 
 class StudentMazeSolverTest:
 
-  // TODO: Add your own unit tests here to thoroughly test edge cases:
-  // - Boundary conditions (robot trapped by walls on all 4 sides)
-  // - Energy exhaustion before reaching the exit
-  // - Mazes with multiple energy cells or alternate branches
-  // - Emergency scanner on mazes with cyclic / loop-containing corridors
-
-  @Test @DisplayName("TODO: student test for completely trapped robot")
+  @Test @DisplayName("a trapped robot cannot move and preserves its energy")
   def testTrappedRobot(): Unit =
-    // TODO: Construct a maze where the robot is enclosed by walls '#', attempt moves in all 4 directions,
-    // and verify the robot cannot move and energy is preserved.
-    assertTrue(true)
+    val lines = Array(
+      "#####",
+      "#####",
+      "##R##",
+      "#####",
+      "##E##"
+    )
+    val (maze, robot, _, _) = initGame(lines, 6)
+    val (energy, cells, escaped) = playGame(maze, robot, "UDLR", 6)
 
-  @Test @DisplayName("TODO: student test for energy exhaustion mid-journey")
+    assertArrayEquals(Array(2, 2), robot)
+    assertEquals(6, energy, "Blocked moves must not consume energy")
+    assertEquals(0, cells)
+    assertFalse(escaped)
+
+  @Test @DisplayName("the game stops immediately when energy reaches zero")
   def testEnergyExhaustion(): Unit =
-    // TODO: Verify that a robot running out of energy becomes stranded and returns (0, cells, false).
-    assertTrue(true)
+    val lines = Array(
+      "#######",
+      "#R...E#",
+      "#######"
+    )
+    val (maze, robot, _, _) = initGame(lines, 2)
+    val (energy, cells, escaped) = playGame(maze, robot, "RRRR", 2)
 
-  @Test @DisplayName("TODO: student test for scanner on cyclic corridors")
+    assertEquals(0, energy)
+    assertEquals(0, cells)
+    assertFalse(escaped)
+    assertArrayEquals(Array(1, 3), robot, "Moves after energy exhaustion must not execute")
+
+  @Test @DisplayName("recursive scanner terminates on a cyclic corridor")
   def testScannerCyclicCorridor(): Unit =
-    // TODO: Verify that recursive flood fill terminates correctly without infinite recursion
-    // when corridors form loops.
-    assertTrue(true)
+    val lines = Array(
+      "#####",
+      "#...#",
+      "#.#.#",
+      "#...#",
+      "#####"
+    )
+    val maze = parseMaze(lines)
+    val revealed = makeRevealed(maze)
+
+    assertEquals(8, revealReachable(maze, revealed, 1, 1))
+    assertTrue(revealed(3)(3))
+    assertFalse(revealed(2)(2), "The center wall must remain hidden")
+
+  @Test @DisplayName("two energy cells are each collected only once")
+  def testMultipleEnergyCells(): Unit =
+    val lines = Array(
+      "#######",
+      "#RCC.E#",
+      "#######"
+    )
+    val (maze, robot, _, _) = initGame(lines, 2)
+    val (energy, cells, escaped) = playGame(maze, robot, "RRRR", 2)
+
+    assertTrue(escaped)
+    assertEquals(2, cells)
+    assertEquals(4, energy, "2 - 4 movement cost + 6 cell bonus = 4")
+    assertEquals('.', maze(1)(2))
+    assertEquals('.', maze(1)(3))
